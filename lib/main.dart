@@ -1,26 +1,40 @@
+// main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'background_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Request location & notification permissions
-  await requestPermissions();
+  // Init notifications with action handlers
+  await initNotificationActions();
 
-  // Initialize background service
+  await requestPermissions();
   await initializeService();
 
   runApp(const MyApp());
 }
 
+Future<void> initNotificationActions() async {
+  await flutterLocalNotificationsPlugin.initialize(
+    const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    ),
+    onDidReceiveNotificationResponse: (NotificationResponse response) {
+      if (response.actionId == 'STOP_TRACKING') {
+        FlutterBackgroundService().invoke('STOP_TRACKING');
+      }
+    },
+  );
+}
+
 Future<void> requestPermissions() async {
-  // Request location permission
   if (!await Permission.locationWhenInUse.isGranted) {
     await Permission.locationWhenInUse.request();
   }
 
-  // Request notification permission (Android 13+)
   if (!await Permission.notification.isGranted) {
     await Permission.notification.request();
   }

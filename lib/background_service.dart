@@ -1,3 +1,4 @@
+// background_service.dart
 import 'dart:async';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
@@ -6,6 +7,8 @@ import 'package:geolocator/geolocator.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
+
+Timer? locationTimer;
 
 Future<void> initializeService() async {
   final service = FlutterBackgroundService();
@@ -17,6 +20,7 @@ Future<void> initializeService() async {
     importance: Importance.max,
   );
 
+  // Notification channel creation
   await flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin
@@ -38,13 +42,21 @@ Future<void> initializeService() async {
 
   service.startService();
 }
+
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) {
   if (service is AndroidServiceInstance) {
     service.setAsForegroundService();
   }
 
-  Timer.periodic(const Duration(seconds: 5), (timer) async {
+  // 🚫 Stop tracking trigger
+  service.on('STOP_TRACKING').listen((event) {
+    locationTimer?.cancel();
+    service.stopSelf();
+  });
+
+  // ▶ Start periodic location updates
+  locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
     try {
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
@@ -61,12 +73,19 @@ void onStart(ServiceInstance service) {
             channelDescription: 'Shows live location every 5 seconds',
             importance: Importance.max,
             priority: Priority.high,
-            icon: '@mipmap/ic_launcher', // must exist
+            icon: '@mipmap/ic_launcher',
+            actions: [
+              AndroidNotificationAction(
+                'STOP_TRACKING',
+                'Stop Tracking',
+                showsUserInterface: false,
+              ),
+            ],
           ),
         ),
       );
     } catch (e) {
-      print('Location error: $e');
+      print("Location error: $e");
     }
   });
 }
